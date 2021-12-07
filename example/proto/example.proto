@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package example;
+
+service Example {
+  rpc DoSomething (ExampleRequest) returns (ExampleResponse) {}
+}
+
+message ExampleRequest {
+  string name = 1;
+}
+
+message ExampleResponse {
+  string message = 1;
+}
