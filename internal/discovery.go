@@ -13,17 +13,22 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
-type Discovery struct {
+type Discovery interface {
+	Start(ctx context.Context, upstreamServices []string) error
+	Watch() <-chan Mapping
+}
+
+type DiscoveryImpl struct {
 	sync.Mutex
 	last    Mapping
 	workers []func(Mapping)
-	fn      func(context.Context, func(t watch.EventType, s Slice)) error
+	Fn      func(context.Context, func(t watch.EventType, s Slice)) error
 }
 
-func (d *Discovery) Start(ctx context.Context, upstreamServices []string) error {
+func (d *DiscoveryImpl) Start(ctx context.Context, upstreamServices []string) error {
 	slices := make(map[string]Slice)
 	debounced := debounce.New(50 * time.Millisecond)
-	return d.fn(ctx, func(t watch.EventType, s Slice) {
+	return d.Fn(ctx, func(t watch.EventType, s Slice) {
 		if len(upstreamServices) > 0 && !Contains(upstreamServices, s.Service) {
 			return
 		}
@@ -39,7 +44,7 @@ func (d *Discovery) Start(ctx context.Context, upstreamServices []string) error 
 	})
 }
 
-func (d *Discovery) computeMapping(slices map[string]Slice) Mapping {
+func (d *DiscoveryImpl) computeMapping(slices map[string]Slice) Mapping {
 	mapping := Mapping{}
 	for _, slice := range slices {
 		var service map[string][]podEndPoint
@@ -63,7 +68,7 @@ func (d *Discovery) computeMapping(slices map[string]Slice) Mapping {
 	return mapping
 }
 
-func (d *Discovery) Watch() <-chan Mapping {
+func (d *DiscoveryImpl) Watch() <-chan Mapping {
 	d.Lock()
 	defer d.Unlock()
 
@@ -81,7 +86,7 @@ func (d *Discovery) Watch() <-chan Mapping {
 	return ch
 }
 
-func (d *Discovery) Emit(m Mapping) {
+func (d *DiscoveryImpl) Emit(m Mapping) {
 	d.Lock()
 	defer d.Unlock()
 	d.last = m
@@ -90,27 +95,28 @@ func (d *Discovery) Emit(m Mapping) {
 	}
 }
 
-func FileWatch(ctx context.Context, fn func(t watch.EventType, s Slice)) error {
-	filePath := "slice.yaml"
-	if env, hasEnv := os.LookupEnv("TEST_SLICE_FILE"); hasEnv {
-		filePath = env
-	}
-	initialStat, err := os.Stat(filePath)
+type MockDiscovery struct {
+	filePath string
+	DiscoveryImpl
+}
+
+func (d *MockDiscovery) Start(ctx context.Context, upstreamServices []string) error {
+	initialStat, err := os.Stat(d.filePath)
 	if err != nil {
 		return err
 	}
 
-	read := func() (dst Slice) {
-		data, _ := ioutil.ReadFile(filePath)
+	read := func() (dst Mapping) {
+		data, _ := ioutil.ReadFile(d.filePath)
 		err = yaml.Unmarshal(data, &dst)
 		if err != nil {
-			zap.S().Warnf("Invalid format for Slice in file %s", filePath)
+			zap.S().Warnf("Invalid format for Mapping in file %s", d.filePath)
 		}
-		return Slice{}
+		return
 	}
 
 	initial := read()
-	fn(watch.Added, initial)
+	d.Emit(initial)
 
 	t := time.NewTicker(500 * time.Millisecond)
 	for {
@@ -118,13 +124,13 @@ func FileWatch(ctx context.Context, fn func(t watch.EventType, s Slice)) error {
 		case <-ctx.Done():
 			return nil
 		case <-t.C:
-			stat, err := os.Stat(filePath)
+			stat, err := os.Stat(d.filePath)
 			if err != nil {
-				fn(watch.Deleted, Slice{Name: initial.Name})
+				d.Emit(nil)
 				return err
 			}
 			if stat.Size() != initialStat.Size() || stat.ModTime() != initialStat.ModTime() {
-				fn(watch.Modified, read())
+				d.Emit(read())
 			}
 		}
 	}

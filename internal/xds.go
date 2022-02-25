@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"os"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v2"
@@ -11,11 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Run(ctx context.Context) {
-	config, err := ReadConfig()
-	if err != nil {
-		zap.L().Fatal(err.Error())
-	}
+func Run(ctx context.Context, config *viper.Viper, d Discovery) {
 	upstreamServices := config.GetStringSlice("upstreamServices")
 
 	signal := make(chan struct{})
@@ -25,8 +20,6 @@ func Run(ctx context.Context) {
 		Requests: 0,
 	}
 
-	d := Discovery{fn: KubernetesEndpointWatch}
-	// d := Discovery{fn: FileWatch}
 	go d.Start(ctx, upstreamServices)
 
 	filterCache := &FilterCache{
@@ -49,39 +42,8 @@ func Run(ctx context.Context) {
 		},
 	}
 
-	go func() {
-		// test
-		node := &core.Node{Id: "foobar", Locality: &core.Locality{Zone: ""}}
-		snapshotCache := cache.NewSnapshotCache(true, cache.IDHash{}, xdsLog())
-		stream := d.Watch()
-		for {
-			m := <-stream
-			ss, err := GenerateSnapshot(node, m)
-			if err != nil {
-				zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
-				return
-			}
-			snapshotCache.SetSnapshot(ctx, node.Id, *ss)
-			zap.S().Info(ss)
-		}
-	}()
-
 	srv := xds.NewServer(ctx, filterCache, cb)
 	RunManagementServer(ctx, srv, uint(config.GetInt("managementServer.port")), uint32(config.GetInt("maxConcurrentStreams")))
-}
-
-// ReadConfig reads the config data from file
-func ReadConfig() (*viper.Viper, error) {
-	file := "/var/run/config/app.yaml"
-	if fileEnv, hasEnv := os.LookupEnv("CONFIG"); hasEnv {
-		file = fileEnv
-	}
-	zap.L().Debug("Reading configuration", zap.String("file", file))
-	v := viper.New()
-	v.SetConfigFile(file)
-	v.AutomaticEnv()
-	err := v.ReadInConfig()
-	return v, err
 }
 
 func Contains(sl []string, str string) bool {

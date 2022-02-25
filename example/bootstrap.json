@@ -1,0 +1,17 @@
+{
+  "xds_servers": [
+    {
+      "server_uri": "localhost:9000",
+      "channel_creds": [{ "type": "insecure" }]
+    }
+  ],
+  "node": {
+    "id": "$HOSTNAME",
+    "metadata": {
+      "SOME_KEY": "SOME_VALUE"
+    },
+    "locality": {
+      "zone": "europe-west4-a"
+    }
+  }
+}

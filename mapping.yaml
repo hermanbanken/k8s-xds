@@ -1,0 +1,14 @@
+# map[string]map[string][]podEndPoint
+example-server:
+  europe-west4-a:
+    - ip: 127.0.0.1
+      port: 8000
+      zone: europe-west4-a
+  europe-west4-b:
+    - ip: 127.0.0.1
+      port: 8001
+      zone: europe-west4-b
+  europe-west4-c:
+    - ip: 127.0.0.1
+      port: 8002
+      zone: europe-west4-c
