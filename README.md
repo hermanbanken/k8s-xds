@@ -26,6 +26,10 @@ Configuration in the client (supported clients as of september 2020: C-core, Jav
     ```
 - 3. Create the gRPC client like this:
     ```go
+    import (
+      _ "google.golang.org/grpc/xds" // To install the xds resolvers and balancers.
+    )
+  
     grpc.Dial("xds:///my-upstream-server", grpc.WithInsecure())
     ```
 
