@@ -32,9 +32,10 @@ func Run(ctx context.Context) {
 		createFn: func(node *core.Node) cache.SnapshotCache {
 			zap.L().Info("Creating Node", zap.String("Id", node.Id))
 			snapshotCache := cache.NewSnapshotCache(true, cache.IDHash{}, xdsLog())
+			stream := d.Watch()
 			go func() {
 				for {
-					m := <-d.Watch()
+					m := <-stream
 					ss, err := GenerateSnapshot(node, m)
 					if err != nil {
 						zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
@@ -46,6 +47,23 @@ func Run(ctx context.Context) {
 			return snapshotCache
 		},
 	}
+
+	go func() {
+		// test
+		node := &core.Node{Id: "foobar", Locality: &core.Locality{Zone: ""}}
+		snapshotCache := cache.NewSnapshotCache(true, cache.IDHash{}, xdsLog())
+		stream := d.Watch()
+		for {
+			m := <-stream
+			ss, err := GenerateSnapshot(node, m)
+			if err != nil {
+				zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
+				return
+			}
+			snapshotCache.SetSnapshot(ctx, node.Id, *ss)
+			zap.S().Info(ss)
+		}
+	}()
 
 	srv := xds.NewServer(ctx, filterCache, cb)
 	RunManagementServer(ctx, srv, uint(config.GetInt("managementServer.port")), uint32(config.GetInt("maxConcurrentStreams")))

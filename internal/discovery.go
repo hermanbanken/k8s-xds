@@ -3,7 +3,9 @@ package internal
 import (
 	"context"
 	"sync"
+	"time"
 
+	"github.com/bep/debounce"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -15,6 +17,7 @@ type Discovery struct {
 
 func (d *Discovery) Start(ctx context.Context, upstreamServices []string) {
 	slices := make(map[string]Slice)
+	debounced := debounce.New(50 * time.Millisecond)
 	dowatch(ctx, func(t watch.EventType, s Slice) {
 		if len(upstreamServices) > 0 && !Contains(upstreamServices, s.Service) {
 			return
@@ -24,8 +27,10 @@ func (d *Discovery) Start(ctx context.Context, upstreamServices []string) {
 		} else if t == watch.Deleted {
 			delete(slices, s.Name)
 		}
-		m := d.computeMapping(slices)
-		d.Emit(m)
+		debounced(func() {
+			m := d.computeMapping(slices)
+			d.Emit(m)
+		})
 	})
 }
 
