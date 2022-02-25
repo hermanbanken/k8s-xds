@@ -9,6 +9,7 @@ import (
 	examplev1 "github.com/hermanbanken/k8s-xds/example/pkg/gen/v1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/xds"
 )
 
 func main() {

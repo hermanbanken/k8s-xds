@@ -3,9 +3,9 @@ package internal
 import (
 	"context"
 
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v2"
-	xds "github.com/envoyproxy/go-control-plane/pkg/server/v2"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	xds "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -35,7 +35,7 @@ func Run(ctx context.Context, config *viper.Viper, d Discovery) {
 						zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
 						return
 					}
-					snapshotCache.SetSnapshot(node.Id, *ss)
+					snapshotCache.SetSnapshot(ctx, node.Id, *ss)
 				}
 			}()
 			return snapshotCache

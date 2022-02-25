@@ -7,15 +7,15 @@ import (
 	"sort"
 	"strings"
 
-	v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	ep "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
-	listenerv2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	v2route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	lv2 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v2"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	l "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v2"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -59,9 +59,15 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 
 	version := uuid.New()
 	zap.L().Debug("Creating Snapshot", zap.String("version", version.String()), zap.Any("EDS", eds), zap.Any("CDS", cds), zap.Any("RDS", rds), zap.Any("LDS", lds))
-	snapshot := cache.NewSnapshot(version.String(), eds, cds, rds, lds, []types.Resource{}, []types.Resource{})
-
-	if err := snapshot.Consistent(); err != nil {
+	snapshot, err := cache.NewSnapshot(version.String(), map[resource.Type][]types.Resource{
+		resource.EndpointType: eds,
+		resource.ClusterType:  cds,
+		resource.RouteType:    rds,
+		resource.ListenerType: lds,
+	})
+	if err != nil {
+		zap.L().Error("Snapshot error", zap.Any("snapshot", snapshot), zap.Error(err))
+	} else if err := snapshot.Consistent(); err != nil {
 		zap.L().Error("Snapshot inconsistency", zap.Any("snapshot", snapshot), zap.Error(err))
 	}
 	return &snapshot, nil
@@ -69,7 +75,7 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 
 func clusterLoadAssignment(zones map[string][]podEndPoint, clusterName string, ownZone string, seed int64) []types.Resource {
 	r := rand.New(rand.NewSource(seed))
-	cla := &v2.ClusterLoadAssignment{ClusterName: clusterName}
+	cla := &endpoint.ClusterLoadAssignment{ClusterName: clusterName}
 
 	zoneTotal := 0
 	zoneNames := []string{}
@@ -97,7 +103,7 @@ outerLoop:
 		if zone == ownZone {
 			weight = 1000
 		}
-		var locality = &ep.LocalityLbEndpoints{
+		var locality = &endpoint.LocalityLbEndpoints{
 			Locality: &core.Locality{
 				Region: zoneToRegion(zone),
 				Zone:   zone,
@@ -126,9 +132,9 @@ outerLoop:
 					},
 				},
 			}}
-			locality.LbEndpoints = append(locality.LbEndpoints, &ep.LbEndpoint{
-				HostIdentifier: &ep.LbEndpoint_Endpoint{
-					Endpoint: &ep.Endpoint{
+			locality.LbEndpoints = append(locality.LbEndpoints, &endpoint.LbEndpoint{
+				HostIdentifier: &endpoint.LbEndpoint_Endpoint{
+					Endpoint: &endpoint.Endpoint{
 						Address: hst,
 					}},
 				HealthStatus: core.HealthStatus_HEALTHY,
@@ -147,11 +153,11 @@ outerLoop:
 func createCluster(clusterName string) []types.Resource {
 	zap.L().Debug("Creating CLUSTER", zap.String("name", clusterName))
 	cls := []types.Resource{
-		&v2.Cluster{
+		&cluster.Cluster{
 			Name:                 clusterName,
-			LbPolicy:             v2.Cluster_ROUND_ROBIN,
-			ClusterDiscoveryType: &v2.Cluster_Type{Type: v2.Cluster_EDS},
-			EdsClusterConfig: &v2.Cluster_EdsClusterConfig{
+			LbPolicy:             cluster.Cluster_ROUND_ROBIN,
+			ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_EDS},
+			EdsClusterConfig: &cluster.Cluster_EdsClusterConfig{
 				EdsConfig: &core.ConfigSource{
 					ConfigSourceSpecifier: &core.ConfigSource_Ads{},
 				},
@@ -161,21 +167,21 @@ func createCluster(clusterName string) []types.Resource {
 	return cls
 }
 
-func createVirtualHost(virtualHostName, listenerName, clusterName string) *v2route.VirtualHost {
+func createVirtualHost(virtualHostName, listenerName, clusterName string) *route.VirtualHost {
 	zap.L().Debug("Creating RDS", zap.String("host name", virtualHostName))
-	vh := &v2route.VirtualHost{
+	vh := &route.VirtualHost{
 		Name:    virtualHostName,
 		Domains: []string{listenerName},
 
-		Routes: []*v2route.Route{{
-			Match: &v2route.RouteMatch{
-				PathSpecifier: &v2route.RouteMatch_Prefix{
+		Routes: []*route.Route{{
+			Match: &route.RouteMatch{
+				PathSpecifier: &route.RouteMatch_Prefix{
 					Prefix: "",
 				},
 			},
-			Action: &v2route.Route_Route{
-				Route: &v2route.RouteAction{
-					ClusterSpecifier: &v2route.RouteAction_Cluster{
+			Action: &route.Route_Route{
+				Route: &route.RouteAction{
+					ClusterSpecifier: &route.RouteAction_Cluster{
 						Cluster: clusterName,
 					},
 				},
@@ -188,9 +194,9 @@ func createVirtualHost(virtualHostName, listenerName, clusterName string) *v2rou
 func createRoute(routeConfigName, virtualHostName, listenerName, clusterName string) []types.Resource {
 	vh := createVirtualHost(virtualHostName, listenerName, clusterName)
 	rds := []types.Resource{
-		&v2.RouteConfiguration{
+		&route.RouteConfiguration{
 			Name:         routeConfigName,
-			VirtualHosts: []*v2route.VirtualHost{vh},
+			VirtualHosts: []*route.VirtualHost{vh},
 		},
 	}
 	return rds
@@ -220,9 +226,9 @@ func createListener(listenerName string, clusterName string, routeConfigName str
 	}
 
 	lds := []types.Resource{
-		&v2.Listener{
+		&l.Listener{
 			Name: listenerName,
-			ApiListener: &lv2.ApiListener{
+			ApiListener: &l.ApiListener{
 				ApiListener: pbst,
 			},
 			Address: &core.Address{
@@ -236,10 +242,10 @@ func createListener(listenerName string, clusterName string, routeConfigName str
 					},
 				},
 			},
-			FilterChains: []*listenerv2.FilterChain{{
-				Filters: []*listenerv2.Filter{{
+			FilterChains: []*l.FilterChain{{
+				Filters: []*l.Filter{{
 					Name: wellknown.HTTPConnectionManager,
-					ConfigType: &listenerv2.Filter_TypedConfig{
+					ConfigType: &l.Filter_TypedConfig{
 						TypedConfig: pbst,
 					},
 				}},

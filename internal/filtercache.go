@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v2"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/server/stream/v3"
 )
 
 type FilterCache struct {
@@ -43,8 +44,14 @@ func (fc *FilterCache) get(node *core.Node) cache.Cache {
 	return fc.lookup[key].SnapshotCache
 }
 
-func (fc *FilterCache) CreateWatch(req *cache.Request) (value chan cache.Response, cancel func()) {
-	return fc.get(req.Node).CreateWatch(req)
+var _ cache.Cache = &FilterCache{}
+
+func (fc *FilterCache) CreateWatch(req *cache.Request, ss stream.StreamState, resp chan cache.Response) (cancel func()) {
+	return fc.get(req.Node).CreateWatch(req, ss, resp)
+}
+
+func (fc *FilterCache) CreateDeltaWatch(req *cache.DeltaRequest, ss stream.StreamState, resp chan cache.DeltaResponse) (cancel func()) {
+	return fc.get(req.Node).CreateDeltaWatch(req, ss, resp)
 }
 
 func (fc *FilterCache) Fetch(ctx context.Context, req *cache.Request) (cache.Response, error) {

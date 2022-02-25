@@ -3,7 +3,6 @@ module github.com/hermanbanken/k8s-xds
 go 1.17
 
 replace (
-	github.com/envoyproxy/go-control-plane => github.com/asishrs/go-control-plane v0.9.7
 	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.0
 	k8s.io/client-go => k8s.io/client-go v0.21.0
@@ -33,6 +32,7 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.0 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.3.0 // indirect
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cncf/udpa/go v0.0.0-20210930031921-04548b0d99d4 // indirect
 	github.com/cncf/xds/go v0.0.0-20211130200136-a8f946100490 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
