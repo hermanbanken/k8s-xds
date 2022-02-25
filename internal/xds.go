@@ -2,31 +2,14 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
-	"log"
 	"os"
-	"time"
 
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v2"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server/v2"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"k8s.io/apimachinery/pkg/watch"
 )
-
-func computeMapping(data map[string]Slice) {
-	mapping := map[string]map[string][]string{}
-	for _, slice := range data {
-		if _, hasService := mapping[slice.Service]; !hasService {
-			mapping[slice.Service] = map[string][]string{}
-		}
-		for _, e := range slice.Endpoints {
-			mapping[slice.Service][e.Topology.Zone] = append(mapping[slice.Service][e.Topology.Zone], e.Addresses...)
-		}
-	}
-	b, _ := json.MarshalIndent(mapping, "", "  ")
-	log.Println(string(b))
-}
 
 func Run(ctx context.Context) {
 	config, err := ReadConfig()
@@ -34,19 +17,6 @@ func Run(ctx context.Context) {
 		zap.L().Fatal(err.Error())
 	}
 	upstreamServices := config.GetStringSlice("upstreamServices")
-	slices := make(map[string]Slice)
-
-	go dowatch(ctx, func(t watch.EventType, s Slice) {
-		if len(upstreamServices) > 0 && !Contains(upstreamServices, s.Service) {
-			return
-		}
-		if t == watch.Added || t == watch.Modified {
-			slices[s.Name] = s
-		} else if t == watch.Deleted {
-			delete(slices, s.Name)
-		}
-		computeMapping(slices)
-	})
 
 	signal := make(chan struct{})
 	cb := &Callbacks{
@@ -55,26 +25,30 @@ func Run(ctx context.Context) {
 		Requests: 0,
 	}
 
-	snapshotCache := cache.NewSnapshotCache(true, cache.IDHash{}, xdsLog())
-	srv := xds.NewServer(ctx, snapshotCache, cb)
-	go RunManagementServer(ctx, srv, uint(config.GetInt("managementServer.port")), uint32(config.GetInt("maxConcurrentStreams")))
-	<-signal
+	d := Discovery{}
+	go d.Start(ctx, upstreamServices)
 
-	cb.Report()
-
-	zap.L().Debug("Status", zap.Any("keys", snapshotCache.GetStatusKeys()))
-
-	nodeID := config.GetString("nodeId")
-	zap.L().Info("Creating Node", zap.String("Id", nodeID))
-	for {
-		ss, err := GenerateSnapshot(config.GetStringSlice("upstreamServices"))
-		if err != nil {
-			zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
-		} else {
-			snapshotCache.SetSnapshot(nodeID, *ss)
-			time.Sleep(60 * time.Second)
-		}
+	filterCache := &FilterCache{
+		createFn: func(node *core.Node) cache.SnapshotCache {
+			zap.L().Info("Creating Node", zap.String("Id", node.Id))
+			snapshotCache := cache.NewSnapshotCache(true, cache.IDHash{}, xdsLog())
+			go func() {
+				for {
+					m := <-d.Watch()
+					ss, err := GenerateSnapshot(node, m)
+					if err != nil {
+						zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
+						return
+					}
+					snapshotCache.SetSnapshot(node.Id, *ss)
+				}
+			}()
+			return snapshotCache
+		},
 	}
+
+	srv := xds.NewServer(ctx, filterCache, cb)
+	RunManagementServer(ctx, srv, uint(config.GetInt("managementServer.port")), uint32(config.GetInt("maxConcurrentStreams")))
 }
 
 // ReadConfig reads the config data from file
