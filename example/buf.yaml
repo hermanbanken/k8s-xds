@@ -1,0 +1,20 @@
+version: v1
+breaking:
+  use:
+    - FILE
+    - WIRE_JSON # Break on incompatible changes to the wire protocol and json names
+# build:
+#   roots:
+#     - ./proto
+lint:
+  use:
+    - DEFAULT # Default linting rules
+    - COMMENTS # Enforce documentation by requiring comments on all the things
+  except:
+    - RPC_REQUEST_STANDARD_NAME # Allow the usage of google.protobuf.Empty, etc... as request message
+    - RPC_RESPONSE_STANDARD_NAME # Allow the usage of google.protobuf.Empty, etc... as response message
+    - COMMENT_ENUM_VALUE
+  rpc_allow_google_protobuf_empty_requests: true
+  rpc_allow_google_protobuf_empty_responses: true
+  ignore: # exclude third-party proto files
+    - grpc

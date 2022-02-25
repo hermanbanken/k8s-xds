@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	examplev1 "github.com/hermanbanken/k8s-xds/example/pkg/gen/v1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -22,10 +23,16 @@ func main() {
 		cancel()
 	}()
 
-	c, err := grpc.DialContext(ctx, os.Getenv("upstream_host"))
+	c, err := grpc.DialContext(ctx, os.Getenv("upstream_host"), grpc.WithInsecure())
 	if err != nil {
-		log.Panic(err.Error())
+		log.Fatal(err.Error())
 	}
 
-	c.Invoke(ctx, "DoSomething", struct{}{}, struct{}{})
+	resp, err := examplev1.NewExampleClient(c).DoSomething(ctx, &examplev1.ExampleRequest{
+		Name: "hello world",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println(resp.Message)
 }

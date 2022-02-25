@@ -1,6 +1,8 @@
 syntax = "proto3";
+package example.v1;
 
-package example;
+// Go code generation options
+option go_package = "example/v1;example_v1";
 
 service Example {
   rpc DoSomething (ExampleRequest) returns (ExampleResponse) {}
