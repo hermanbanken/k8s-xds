@@ -5,7 +5,7 @@ This small server can be used for:
 
 Configuration in the client (supported clients as of september 2020: C-core, Java & Go) goes like this:
 
-- 1. Set the environment variable `GRPC_XDS_BOOTSTRAP=/bootstrap.json`
+- 1. Set the environment variable `GRPC_XDS_BOOTSTRAP=/bootstrap.json` ([doc](https://github.com/grpc/grpc-go/tree/master/examples/features/xds))
 - 2. Add this file `/bootstrap.json` containing these contents:
      
     ```json
@@ -35,4 +35,5 @@ Configuration in the client (supported clients as of september 2020: C-core, Jav
 
 ## References
 1. Original proposal: https://github.com/grpc/proposal/blob/master/A27-xds-global-load-balancing.md
-2. https://itnext.io/proxyless-grpc-load-balancing-in-kubernetes-ca1a4797b742
+2. https://itnext.io/proxyless-grpc-load-balancing-in-kubernetes-ca1a4797b742 & https://github.com/asishrs/proxyless-grpc-lb
+3. [GoogleBlog: efficient multi-zone and topology aware routing](https://opensource.googleblog.com/2020/11/kubernetes-efficient-multi-zone.html)
