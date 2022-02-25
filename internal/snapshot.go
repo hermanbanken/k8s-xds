@@ -12,6 +12,7 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	l "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	v3routerpb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
@@ -19,6 +20,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -99,7 +101,7 @@ outerLoop:
 
 		// Locality Weighted Load Balancing
 		// @see https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/locality_weight
-		var weight uint32 = 0
+		var weight uint32 = 1
 		if zone == ownZone {
 			weight = 1000
 		}
@@ -204,27 +206,25 @@ func createRoute(routeConfigName, virtualHostName, listenerName, clusterName str
 
 func createListener(listenerName string, clusterName string, routeConfigName string) []types.Resource {
 	zap.L().Debug("Creating LISTENER", zap.String("name", listenerName))
-	hcRds := &hcm.HttpConnectionManager_Rds{
-		Rds: &hcm.Rds{
-			RouteConfigName: routeConfigName,
-			ConfigSource: &core.ConfigSource{
-				ConfigSourceSpecifier: &core.ConfigSource_Ads{
-					Ads: &core.AggregatedConfigSource{},
+	pbst := any(&hcm.HttpConnectionManager{
+		CodecType: hcm.HttpConnectionManager_AUTO,
+		RouteSpecifier: &hcm.HttpConnectionManager_Rds{
+			Rds: &hcm.Rds{
+				RouteConfigName: routeConfigName,
+				ConfigSource: &core.ConfigSource{
+					ConfigSourceSpecifier: &core.ConfigSource_Ads{
+						Ads: &core.AggregatedConfigSource{},
+					},
 				},
 			},
 		},
-	}
-
-	manager := &hcm.HttpConnectionManager{
-		CodecType:      hcm.HttpConnectionManager_AUTO,
-		RouteSpecifier: hcRds,
-	}
-
-	pbst, err := anypb.New(manager)
-	if err != nil {
-		panic(err)
-	}
-
+		HttpFilters: []*hcm.HttpFilter{{
+			Name: "router",
+			ConfigType: &hcm.HttpFilter_TypedConfig{
+				TypedConfig: any(&v3routerpb.Router{}),
+			},
+		}},
+	})
 	lds := []types.Resource{
 		&l.Listener{
 			Name: listenerName,
@@ -257,4 +257,12 @@ func createListener(listenerName string, clusterName string, routeConfigName str
 func zoneToRegion(zone string) string {
 	// trim -a -b -c suffix
 	return zone[0 : len(zone)-2]
+}
+
+func any(m proto.Message) *anypb.Any {
+	a, err := anypb.New(m)
+	if err != nil {
+		panic(err)
+	}
+	return a
 }
