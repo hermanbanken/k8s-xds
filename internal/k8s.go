@@ -74,7 +74,7 @@ func (w *watcher) Watch(ctx context.Context, fn func(watch.Event), opt metav1.Li
 
 }
 
-func dowatch(ctx context.Context, fn func(watch.EventType, Slice)) error {
+func KubernetesEndpointWatch(ctx context.Context, fn func(watch.EventType, Slice)) error {
 	m := client()
 	readyz(m)
 	registered, _ := paths(m)

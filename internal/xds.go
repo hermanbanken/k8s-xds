@@ -25,7 +25,8 @@ func Run(ctx context.Context) {
 		Requests: 0,
 	}
 
-	d := Discovery{}
+	d := Discovery{fn: KubernetesEndpointWatch}
+	// d := Discovery{fn: FileWatch}
 	go d.Start(ctx, upstreamServices)
 
 	filterCache := &FilterCache{
