@@ -2,6 +2,10 @@ package internal
 
 import (
 	"fmt"
+	"hash/fnv"
+	"math/rand"
+	"sort"
+	"strings"
 
 	v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
@@ -29,6 +33,12 @@ type podEndPoint struct {
 
 // GenerateSnapshot creates snapshot for each service
 func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error) {
+	// Using maximum number of endpoints requires randomness to avoid subsetting the possible large amount of endpoints
+	// This requires a seed that is stable per node, so we hash the node id.
+	h := fnv.New64a()
+	h.Write([]byte(node.Id))
+	seed := int64(h.Sum64())
+
 	zap.L().Debug("K8s", zap.Any("EndPoints", mapping))
 	var eds []types.Resource
 	var cds []types.Resource
@@ -36,7 +46,7 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 	var lds []types.Resource
 	for service, podEndPoints := range mapping {
 		zap.L().Debug("Creating new XDS Entry", zap.String("service", service))
-		eds = append(eds, clusterLoadAssignment(podEndPoints, fmt.Sprintf("%s-cluster", service))...)
+		eds = append(eds, clusterLoadAssignment(podEndPoints, fmt.Sprintf("%s-cluster", service), node.Locality.Zone, seed)...)
 		cds = append(cds, createCluster(fmt.Sprintf("%s-cluster", service))...)
 		rds = append(rds, createRoute(fmt.Sprintf("%s-route", service), fmt.Sprintf("%s-vhost", service), fmt.Sprintf("%s-listener", service), fmt.Sprintf("%s-cluster", service))...)
 		lds = append(lds, createListener(fmt.Sprintf("%s-listener", service), fmt.Sprintf("%s-cluster", service), fmt.Sprintf("%s-route", service))...)
@@ -52,12 +62,55 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 	return &snapshot, nil
 }
 
-func clusterLoadAssignment(zones map[string][]podEndPoint, clusterName string) []types.Resource {
-	var lbss = []*ep.LocalityLbEndpoints{}
+func clusterLoadAssignment(zones map[string][]podEndPoint, clusterName string, ownZone string, seed int64) []types.Resource {
+	r := rand.New(rand.NewSource(seed))
+	cla := &v2.ClusterLoadAssignment{ClusterName: clusterName}
 
-	for zone, podEndpoints := range zones {
-		var lbs []*ep.LbEndpoint
-		for _, podEndPoint := range podEndpoints {
+	zoneTotal := 0
+	zoneNames := []string{}
+	for zone, endpoints := range zones {
+		zoneNames = append(zoneNames, zone)
+		zoneTotal += len(endpoints)
+	}
+
+	// Process our own zone first
+	prioritySort(zoneNames, ownZone)
+
+	// Add at most max(5, total/3) endpoints to each cluster
+	remainingEndpoints := zoneTotal / 3
+	if remainingEndpoints < 5 {
+		remainingEndpoints = 5
+	}
+
+outerLoop:
+	for _, zone := range zoneNames {
+		podEndpoints := zones[zone]
+
+		// Locality Weighted Load Balancing
+		// @see https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/locality_weight
+		var weight uint32 = 0
+		if zone == ownZone {
+			weight = 1000
+		}
+		var locality = &ep.LocalityLbEndpoints{
+			Locality: &core.Locality{
+				Region: zoneToRegion(zone),
+				Zone:   zone,
+			},
+			Priority:            0,
+			LoadBalancingWeight: &wrapperspb.UInt32Value{Value: weight},
+		}
+		cla.Endpoints = append(cla.Endpoints, locality)
+
+		sort.Slice(podEndpoints, func(i, j int) bool {
+			return strings.Compare(podEndpoints[i].IP, podEndpoints[j].IP) < 0
+		})
+		randomForEach(podEndpoints, r, func(i int) {
+			if remainingEndpoints == 0 {
+				return
+			}
+
+			podEndPoint := podEndpoints[i]
 			zap.L().Debug("Creating ENDPOINT", zap.String("host", podEndPoint.IP), zap.Int32("port", podEndPoint.Port))
 			hst := &core.Address{Address: &core.Address_SocketAddress{
 				SocketAddress: &core.SocketAddress{
@@ -68,33 +121,22 @@ func clusterLoadAssignment(zones map[string][]podEndPoint, clusterName string) [
 					},
 				},
 			}}
-
-			lbs = append(lbs, &ep.LbEndpoint{
+			locality.LbEndpoints = append(locality.LbEndpoints, &ep.LbEndpoint{
 				HostIdentifier: &ep.LbEndpoint_Endpoint{
 					Endpoint: &ep.Endpoint{
 						Address: hst,
 					}},
 				HealthStatus: core.HealthStatus_HEALTHY,
 			})
-		}
-		lbss = append(lbss, &ep.LocalityLbEndpoints{
-			Locality: &core.Locality{
-				Region: zoneToRegion(zone),
-				Zone:   zone,
-			},
-			Priority:            0,
-			LoadBalancingWeight: &wrapperspb.UInt32Value{Value: uint32(1000)},
-			LbEndpoints:         lbs,
+			remainingEndpoints--
 		})
+		if remainingEndpoints == 0 {
+			break outerLoop
+		}
+
 	}
 
-	eds := []types.Resource{
-		&v2.ClusterLoadAssignment{
-			ClusterName: clusterName,
-			Endpoints:   lbss,
-		},
-	}
-	return eds
+	return []types.Resource{cla}
 }
 
 func createCluster(clusterName string) []types.Resource {
