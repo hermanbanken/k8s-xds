@@ -39,6 +39,11 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 	h.Write([]byte(node.Id))
 	seed := int64(h.Sum64())
 
+	var ownZone string
+	if node.Locality != nil {
+		ownZone = node.Locality.Zone
+	}
+
 	zap.L().Debug("K8s", zap.Any("EndPoints", mapping))
 	var eds []types.Resource
 	var cds []types.Resource
@@ -46,7 +51,7 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 	var lds []types.Resource
 	for service, podEndPoints := range mapping {
 		zap.L().Debug("Creating new XDS Entry", zap.String("service", service))
-		eds = append(eds, clusterLoadAssignment(podEndPoints, fmt.Sprintf("%s-cluster", service), node.Locality.Zone, seed)...)
+		eds = append(eds, clusterLoadAssignment(podEndPoints, fmt.Sprintf("%s-cluster", service), ownZone, seed)...)
 		cds = append(cds, createCluster(fmt.Sprintf("%s-cluster", service))...)
 		rds = append(rds, createRoute(fmt.Sprintf("%s-route", service), fmt.Sprintf("%s-vhost", service), fmt.Sprintf("%s-listener", service), fmt.Sprintf("%s-cluster", service))...)
 		lds = append(lds, createListener(fmt.Sprintf("%s-listener", service), fmt.Sprintf("%s-cluster", service), fmt.Sprintf("%s-route", service))...)
