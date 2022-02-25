@@ -30,7 +30,7 @@ Configuration in the client (supported clients as of september 2020: C-core, Jav
       _ "google.golang.org/grpc/xds" // To install the xds resolvers and balancers.
     )
   
-    grpc.Dial("xds:///my-upstream-server", grpc.WithInsecure())
+    grpc.Dial("xds:///upstream-service", grpc.WithInsecure())
     ```
 
 ## References

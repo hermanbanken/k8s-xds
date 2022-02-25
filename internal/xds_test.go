@@ -57,7 +57,7 @@ func TestXds(t *testing.T) {
 	t.Log(string(bootstrap))
 	resolver, err := xds.NewXDSResolverWithConfigForTesting(bootstrap)
 	assert.NoError(t, err)
-	c, err := grpc.DialContext(ctx, "xds:///example-server-listener", grpc.WithInsecure(), grpc.WithResolvers(resolver))
+	c, err := grpc.DialContext(ctx, "xds:///example-server", grpc.WithInsecure(), grpc.WithResolvers(resolver))
 	if err != nil {
 		log.Fatal(err.Error())
 	}

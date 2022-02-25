@@ -55,8 +55,8 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 		zap.L().Debug("Creating new XDS Entry", zap.String("service", service))
 		eds = append(eds, clusterLoadAssignment(podEndPoints, fmt.Sprintf("%s-cluster", service), ownZone, seed)...)
 		cds = append(cds, createCluster(fmt.Sprintf("%s-cluster", service))...)
-		rds = append(rds, createRoute(fmt.Sprintf("%s-route", service), fmt.Sprintf("%s-vhost", service), fmt.Sprintf("%s-listener", service), fmt.Sprintf("%s-cluster", service))...)
-		lds = append(lds, createListener(fmt.Sprintf("%s-listener", service), fmt.Sprintf("%s-cluster", service), fmt.Sprintf("%s-route", service))...)
+		rds = append(rds, createRoute(fmt.Sprintf("%s-route", service), fmt.Sprintf("%s-vhost", service), service, fmt.Sprintf("%s-cluster", service))...)
+		lds = append(lds, createListener(service, fmt.Sprintf("%s-cluster", service), fmt.Sprintf("%s-route", service))...)
 	}
 
 	version := uuid.New()
