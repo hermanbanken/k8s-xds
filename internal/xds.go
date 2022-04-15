@@ -25,7 +25,10 @@ func Run(ctx context.Context, config *viper.Viper, d Discovery) {
 	filterCache := &FilterCache{
 		createFn: func(node *core.Node) cache.SnapshotCache {
 			zap.L().Info("Creating Node", zap.String("Id", node.Id))
-			snapshotCache := cache.NewSnapshotCache(true, cache.IDHash{}, xdsLog())
+			// ads=false to disable ADS: otherwise the xDS server will wait with responding until the
+			// xDS client lists all resource names (which it never will if it just utilizes a subset)
+			// link: https://github.com/grpc/grpc-go/issues/5131#issuecomment-1022434793
+			snapshotCache := cache.NewSnapshotCache(false, cache.IDHash{}, xdsLog())
 			stream := d.Watch()
 			go func() {
 				for {
