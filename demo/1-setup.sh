@@ -16,6 +16,13 @@ fi
 cat <<EOF | kind create cluster --name=demo --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 38000
+    hostPort: 8000
+  - containerPort: 32686
+    hostPort: 16686
 containerdConfigPatches:
 - |-
   [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:${reg_port}"]
