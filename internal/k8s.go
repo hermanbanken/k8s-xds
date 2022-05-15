@@ -35,7 +35,11 @@ func (w *watcher) WatchLooped(ctx context.Context, fn func(watch.Event), opt met
 		err := w.Watch(ctx, func(e watch.Event) {
 			// https://stackoverflow.com/questions/66080942/what-k8s-bookmark-solves
 			if e.Type == watch.Bookmark {
-				w.resourceVersion = e.Object.(*v1beta1.EndpointSlice).ResourceVersion
+				if es, ok := e.Object.(*v1beta1.EndpointSlice); ok {
+					w.resourceVersion = es.ResourceVersion
+				} else if es, ok := e.Object.(*v1.EndpointSlice); ok {
+					w.resourceVersion = es.ResourceVersion
+				}
 				opt.ResourceVersion = w.resourceVersion
 			} else {
 				fn(e)
