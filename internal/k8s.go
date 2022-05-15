@@ -113,6 +113,7 @@ func readyz(m *kubernetes.Clientset) (err error) {
 	if !bytes.Equal(payload[0:2], []byte("ok")) {
 		return fmt.Errorf("unexpected healthz response %q", string(payload))
 	}
+	zap.L().Debug("kubernetes ready")
 	return
 }
 
