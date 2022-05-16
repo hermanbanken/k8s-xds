@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -18,6 +19,7 @@ import (
 var cleanupTracing = trace.InstallExportPipeline(context.Background(), "server")
 
 func main() {
+	flag.Parse()
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
