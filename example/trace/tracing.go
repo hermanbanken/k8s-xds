@@ -1,4 +1,4 @@
-package main
+package trace
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func newResource(name string) *resource.Resource {
 	)
 }
 
-func installExportPipeline(ctx context.Context, name string) func() {
+func InstallExportPipeline(ctx context.Context, name string) func() {
 	url := os.Getenv("JAEGER_TRACE_URL")
 	if url == "" {
 		zap.S().Warn("not tracing; set $JAEGER_TRACE_URL")

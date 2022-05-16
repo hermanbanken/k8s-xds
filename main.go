@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 
 	"github.com/hermanbanken/k8s-xds/internal"
@@ -13,6 +14,7 @@ import (
 var levelFlag = zap.LevelFlag("loglevel", zap.DebugLevel, "set the loglevel")
 
 func main() {
+	flag.Parse()
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 		os.Stderr,

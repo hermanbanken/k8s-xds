@@ -9,12 +9,13 @@ import (
 	"os/signal"
 
 	examplev1 "github.com/hermanbanken/k8s-xds/example/pkg/gen/v1"
+	"github.com/hermanbanken/k8s-xds/example/trace"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
-var cleanupTracing = installExportPipeline(context.Background(), "server")
+var cleanupTracing = trace.InstallExportPipeline(context.Background(), "server")
 
 func main() {
 	grpcServer := grpc.NewServer(
