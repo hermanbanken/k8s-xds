@@ -1,5 +1,4 @@
 brew install kind
-kind create cluster --name=demo
 
 ## For M1 Apple Silicon, continue below by creating a local registry (https://github.com/admiraltyio/admiralty/issues/148)
 # https://kind.sigs.k8s.io/docs/user/local-registry/

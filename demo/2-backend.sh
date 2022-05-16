@@ -13,12 +13,12 @@ docker push localhost:5001/demo-server
 IMAGE=localhost:5001/demo-server
 
 # Both:
-kubectl create deployment demo-server --image $IMAGE --replicas=1
+kubectl create deployment demo-server --image="$IMAGE" --replicas=1
 kubectl expose deployment demo-server --port=9090 --target-port=9090 --selector='app=demo-server' --cluster-ip='None'
-kubectl set env deployment/demo-server JAEGER_TRACE_URL=http://localhost:14268/api/traces
+kubectl set env deployment/demo-server JAEGER_TRACE_URL=http://jaeger:14268/api/traces
 
 # Jaeger (https://www.jaegertracing.io/docs/1.33/deployment/#all-in-one)
-kubectl create deployment jaeger --image=jaegertracing/all-in-one:1.33 --replicas=1 --port=14268
+kubectl create deployment jaeger --image="jaegertracing/all-in-one:1.33" --replicas=1 --port=14268
 kubectl set env deployment/jaeger COLLECTOR_ZIPKIN_HOST_PORT=:9411
 kubectl expose deployment jaeger --port=14268 --target-port=14268 --selector='app=jaeger' # tracing ingress
 cat <<EOF | kubectl apply -f -
