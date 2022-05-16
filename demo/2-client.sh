@@ -50,4 +50,40 @@ spec:
           periodSeconds: 1
           failureThreshold: 1
 EOF
-kubectl get service demo-client || kubectl expose deployment demo-client --port=9090 --target-port=9090 --selector='app=demo-client' --cluster-ip='None'
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: demo-server
+  name: demo-server-clusterip
+  namespace: default
+spec:
+  ports:
+  - port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: demo-server
+  type: ClusterIP
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: demo-server
+  name: demo-server-headless
+  namespace: default
+spec:
+  clusterIP: None
+  ports:
+  - port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: demo-server
+  type: ClusterIP
+EOF
