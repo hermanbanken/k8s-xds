@@ -20,7 +20,12 @@ func Run(ctx context.Context, config *viper.Viper, d Discovery) {
 		Requests: 0,
 	}
 
-	go d.Start(ctx, upstreamServices)
+	go func() {
+		err := d.Start(ctx, upstreamServices)
+		if err != nil {
+			zap.L().Fatal("discovery crashed", zap.Error(err))
+		}
+	}()
 
 	filterCache := &FilterCache{
 		createFn: func(node *core.Node) cache.SnapshotCache {
@@ -33,12 +38,13 @@ func Run(ctx context.Context, config *viper.Viper, d Discovery) {
 			go func() {
 				for {
 					m := <-stream
+					zap.L().Debug("New mapping", zap.Any("mapping", m))
 					ss, err := GenerateSnapshot(node, m)
 					if err != nil {
 						zap.L().Error("Error in Generating the SnapShot", zap.Error(err))
 						return
 					}
-					snapshotCache.SetSnapshot(ctx, node.Id, *ss)
+					snapshotCache.SetSnapshot(ctx, node.Id, ss)
 				}
 			}()
 			return snapshotCache

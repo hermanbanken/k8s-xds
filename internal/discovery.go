@@ -32,8 +32,10 @@ func (d *DiscoveryImpl) Start(ctx context.Context, upstreamServices []string) er
 	debounced := debounce.New(50 * time.Millisecond)
 	return d.Fn(ctx, func(t watch.EventType, s Slice) {
 		if len(upstreamServices) > 0 && !Contains(upstreamServices, s.Service) {
+			zap.L().Debug("skip watch event", zap.String("service", s.Service))
 			return
 		}
+		zap.L().Debug("watch event", zap.String("service", s.Service))
 		if t == watch.Added || t == watch.Modified {
 			slices[s.Name] = s
 		} else if t == watch.Deleted {

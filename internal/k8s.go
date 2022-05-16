@@ -83,6 +83,7 @@ func KubernetesEndpointWatch(ctx context.Context, fn func(watch.EventType, Slice
 	readyz(m)
 	registered, _ := paths(m)
 	if registered.Has("/apis/discovery.k8s.io/v1") {
+		zap.L().Debug("Using /apis/discovery.k8s.io/v1")
 		w := &watcher{Fn: m.DiscoveryV1().EndpointSlices(Namespace()).Watch}
 		return w.WatchLooped(ctx, func(e watch.Event) {
 			if es, ok := e.Object.(*v1.EndpointSlice); ok {
@@ -93,6 +94,7 @@ func KubernetesEndpointWatch(ctx context.Context, fn func(watch.EventType, Slice
 		}, metav1.ListOptions{})
 
 	} else if registered.Has("/apis/discovery.k8s.io/v1beta1") {
+		zap.L().Debug("Using /apis/discovery.k8s.io/v1beta1")
 		w := &watcher{Fn: m.DiscoveryV1beta1().EndpointSlices(Namespace()).Watch}
 		return w.WatchLooped(ctx, func(e watch.Event) {
 			if es, ok := e.Object.(*v1beta1.EndpointSlice); ok {
