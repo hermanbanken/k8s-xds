@@ -1,0 +1,19 @@
+{
+    "xds_servers": [
+      {
+        "server_uri": "demo-xds:9000",
+        "channel_creds": [{ "type": "insecure" }],
+        "server_features": ["xds_v3"]
+      }
+    ],
+    "node": {
+      "id": "node-id",
+      "metadata": {
+        "SOME_KEY": "SOME_VALUE"
+      },
+      "locality": {
+        "zone": "europe-west4-a"
+      }
+    }
+  }
+  

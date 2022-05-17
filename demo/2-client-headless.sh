@@ -23,7 +23,7 @@ metadata:
     app: demo-client
   name: demo-client
 spec:
-  replicas: 5
+  replicas: 2
   selector:
     matchLabels:
       app: demo-client
@@ -39,7 +39,7 @@ spec:
         - name: JAEGER_TRACE_URL
           value: http://jaeger:14268/api/traces
         - name: UPSTREAM_HOST
-          value: demo-server:9090
+          value: demo-server-headless:9090
         - name: DURATION
           value: 500ms
         readinessProbe:
@@ -55,35 +55,28 @@ cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    app: demo-server
   name: demo-server-clusterip
-  namespace: default
 spec:
+  type: ClusterIP
+  selector: { app: demo-server }
   ports:
   - port: 9090
     protocol: TCP
     targetPort: 9090
-  selector:
-    app: demo-server
-  type: ClusterIP
 EOF
 
+kubectl set env deployment/demo-client UPSTREAM_HOST=demo-server-clusterip:9090
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    app: demo-server
   name: demo-server-headless
-  namespace: default
 spec:
+  type: ClusterIP
   clusterIP: None
+  selector: { app: demo-server }
   ports:
   - port: 9090
     protocol: TCP
     targetPort: 9090
-  selector:
-    app: demo-server
-  type: ClusterIP
 EOF

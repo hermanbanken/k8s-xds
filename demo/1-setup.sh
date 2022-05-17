@@ -46,3 +46,24 @@ data:
     host: "localhost:${reg_port}"
     help: "https://kind.sigs.k8s.io/docs/user/local-registry/"
 EOF
+
+if false do
+  # Jaeger (https://www.jaegertracing.io/docs/1.33/deployment/#all-in-one)
+  kubectl create deployment jaeger --image="jaegertracing/all-in-one:1.33" --replicas=1 --port=14268
+  kubectl set env deployment/jaeger COLLECTOR_ZIPKIN_HOST_PORT=:9411
+  kubectl expose deployment jaeger --port=14268 --target-port=14268 --selector='app=jaeger' # tracing ingress
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: jaeger-ui
+  spec:
+    type: NodePort
+    ports:
+    - name: http
+      nodePort: 32686
+      port: 16686
+    selector:
+      app: jaeger
+  EOF
+fi
