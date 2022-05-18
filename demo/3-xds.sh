@@ -97,9 +97,8 @@ spec:
       containers:
       - image: $IMAGE_CLIENT_XDS
         name: demo-client-xds
+        envFrom: [configMapRef: { name: jaeger }]
         env:
-        # - name: JAEGER_TRACE_URL
-        #  value: http://jaeger:14268/api/traces
         - name: UPSTREAM_HOST
           value: xds:///demo-server-headless
         - name: DURATION

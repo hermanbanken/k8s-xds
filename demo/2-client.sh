@@ -32,9 +32,8 @@ spec:
       containers:
       - image: $IMAGE
         name: demo-client-headless
+        envFrom: [configMapRef: { name: jaeger }]
         env:
-        # - name: JAEGER_TRACE_URL
-        #   value: http://jaeger:14268/api/traces
         - name: UPSTREAM_HOST
           value: demo-server-headless:9090
         - name: DURATION
@@ -65,9 +64,8 @@ spec:
       containers:
       - image: $IMAGE
         name: demo-client-clusterip
+        envFrom: [configMapRef: { name: jaeger }]
         env:
-        # - name: JAEGER_TRACE_URL
-        #   value: http://jaeger:14268/api/traces
         - name: UPSTREAM_HOST
           value: demo-server-clusterip:9090
         - name: DURATION
