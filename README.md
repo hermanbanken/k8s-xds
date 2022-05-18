@@ -38,6 +38,7 @@ Configuration in the client (supported clients as of september 2020: C-core, Jav
 1. Original proposal: https://github.com/grpc/proposal/blob/master/A27-xds-global-load-balancing.md
 1. https://itnext.io/proxyless-grpc-load-balancing-in-kubernetes-ca1a4797b742 & https://github.com/asishrs/proxyless-grpc-lb
 1. [GoogleBlog: efficient multi-zone and topology aware routing](https://opensource.googleblog.com/2020/11/kubernetes-efficient-multi-zone.html)
+1. This is an (more flexible) alternative to the [TopologyAwareHints beta-feature in Kubernetes 1.23+](https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/)
 1. [Using xDS v3: server_features <- xds_v3](https://github.com/grpc/proposal/blob/master/A30-xds-v3.md)
 1. [gRPC xDS Loadbalancing](https://github.com/salrashid123/grpc_xds)
 1. [debug gRPC xDS clients](https://github.com/grpc-ecosystem/grpcdebug#debug-xds)
