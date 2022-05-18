@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: { app: demo-client-xds }
+  name: demo-client-xds
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: demo-client-xds }
+  template:
+    metadata:
+      labels: { app: demo-client-xds }
+    spec:
+      containers:
+      - image: demo-client
+        name: demo-client-xds
+        envFrom: [configMapRef: { name: jaeger }]
+        env:
+        - name: UPSTREAM_HOST
+          value: xds:///demo-server-headless
+        - name: DURATION
+          value: 500ms
+        - name: GRPC_XDS_BOOTSTRAP
+          value: /etc/config/bootstrap.json
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 1
+          periodSeconds: 1
+          failureThreshold: 1
+        volumeMounts:
+        - name: bootstrap
+          mountPath: /etc/config
+      volumes:
+        - name: bootstrap
+          configMap: { name: demo-client-xds }
