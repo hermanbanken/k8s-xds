@@ -2,15 +2,25 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 
 	"github.com/hermanbanken/k8s-xds/internal"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
+var levelFlag = zap.LevelFlag("loglevel", zap.DebugLevel, "set the loglevel")
+
 func main() {
-	z, _ := zap.NewProduction()
+	flag.Parse()
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		os.Stderr,
+		levelFlag,
+	)
+	z := zap.New(core)
 	zap.ReplaceGlobals(z)
 	zap.L().Info("Starting control plane")
 	ctx := context.Background()
@@ -33,5 +43,10 @@ func ReadConfig() (*viper.Viper, error) {
 	v.SetConfigFile(file)
 	v.AutomaticEnv()
 	err := v.ReadInConfig()
+	if err != nil {
+		zap.L().Error("read config error", zap.Error(err))
+	} else {
+		zap.L().Debug("read config", zap.Any("config", v.AllSettings()))
+	}
 	return v, err
 }

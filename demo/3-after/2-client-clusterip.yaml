@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-server-clusterip
+spec:
+  type: ClusterIP
+  selector: { app: demo-server }
+  ports:
+  - port: 9090
+    protocol: TCP
+    targetPort: 9090
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: { app: demo-client-clusterip }
+  name: demo-client-clusterip
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: demo-client-clusterip }
+  template:
+    metadata:
+      labels: { app: demo-client-clusterip }
+    spec:
+      containers:
+      - image: demo-client
+        name: demo-client-clusterip
+        envFrom: [configMapRef: { name: jaeger }]
+        env:
+        - name: UPSTREAM_HOST
+          value: demo-server-clusterip:9090
+        - name: DURATION
+          value: 500ms
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 1
+          periodSeconds: 1
+          failureThreshold: 1

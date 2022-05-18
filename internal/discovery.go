@@ -18,6 +18,8 @@ type Discovery interface {
 	Watch() <-chan Mapping
 }
 
+// DiscoveryImpl is a generic discovery layer that hooks to Fn.
+// It generates and emits zoned mappings, by inspecting the Slice's Endpoint information.
 type DiscoveryImpl struct {
 	sync.Mutex
 	last    Mapping
@@ -30,8 +32,10 @@ func (d *DiscoveryImpl) Start(ctx context.Context, upstreamServices []string) er
 	debounced := debounce.New(50 * time.Millisecond)
 	return d.Fn(ctx, func(t watch.EventType, s Slice) {
 		if len(upstreamServices) > 0 && !Contains(upstreamServices, s.Service) {
+			zap.L().Debug("skip watch event", zap.String("service", s.Service))
 			return
 		}
+		zap.L().Debug("watch event", zap.String("service", s.Service))
 		if t == watch.Added || t == watch.Modified {
 			slices[s.Name] = s
 		} else if t == watch.Deleted {
@@ -44,6 +48,7 @@ func (d *DiscoveryImpl) Start(ctx context.Context, upstreamServices []string) er
 	})
 }
 
+// computeMapping converts from EndpointSlices to a zoned mapping so the downstream services do not need to transform individually
 func (d *DiscoveryImpl) computeMapping(slices map[string]Slice) Mapping {
 	mapping := Mapping{}
 	for _, slice := range slices {
@@ -68,6 +73,7 @@ func (d *DiscoveryImpl) computeMapping(slices map[string]Slice) Mapping {
 	return mapping
 }
 
+// Watch always emits the last computed value first, so the consumer can start immediately
 func (d *DiscoveryImpl) Watch() <-chan Mapping {
 	d.Lock()
 	defer d.Unlock()
@@ -95,6 +101,7 @@ func (d *DiscoveryImpl) Emit(m Mapping) {
 	}
 }
 
+// MockDiscovery 'discovers' from a file like mapping.yaml
 type MockDiscovery struct {
 	filePath string
 	DiscoveryImpl

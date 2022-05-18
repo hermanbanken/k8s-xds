@@ -1,0 +1,5 @@
+nodeId: nodeId
+maxConcurrentStreams: 1000
+managementServer:
+  port: 9000
+upstreamServices: [demo-server-headless]

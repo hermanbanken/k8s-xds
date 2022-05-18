@@ -1,0 +1,71 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: endpointslices-reader
+rules:
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: endpointslices-reader
+rules:
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: endpointslices-reader
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: endpointslices-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: { app: demo-xds }
+  name: demo-xds
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: demo-xds }
+  template:
+    metadata:
+      labels: { app: demo-xds }
+    spec:
+      containers:
+      - image: demo-xds
+        name: demo-xds
+        env:
+        - name: CONFIG
+          value: /etc/config/app.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+      volumes:
+      - name: config
+        configMap: { name: demo-xds }
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels: { app: demo-xds }
+  name: demo-xds
+spec:
+  ports:
+  - port: 9000
+    protocol: TCP
+    targetPort: 9000
+  selector: { app: demo-xds }

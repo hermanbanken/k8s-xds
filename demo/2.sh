@@ -1,0 +1,1 @@
+kubectl apply -k 2-before

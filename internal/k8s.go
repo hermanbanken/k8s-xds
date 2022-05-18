@@ -11,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/lestrrat-go/backoff/v2"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/discovery/v1"
 	"k8s.io/api/discovery/v1beta1"
@@ -24,6 +26,12 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+var p = backoff.Exponential(
+	backoff.WithMinInterval(time.Second),
+	backoff.WithMaxInterval(time.Minute),
+	backoff.WithJitterFactor(0.05),
+)
+
 type watcher struct {
 	Fn              func(ctx context.Context, lo metav1.ListOptions) (watch.Interface, error)
 	resourceVersion string
@@ -31,11 +39,16 @@ type watcher struct {
 
 func (w *watcher) WatchLooped(ctx context.Context, fn func(watch.Event), opt metav1.ListOptions) error {
 	opt.AllowWatchBookmarks = true
-	for {
+	b := p.Start(ctx)
+	for backoff.Continue(b) {
 		err := w.Watch(ctx, func(e watch.Event) {
 			// https://stackoverflow.com/questions/66080942/what-k8s-bookmark-solves
 			if e.Type == watch.Bookmark {
-				w.resourceVersion = e.Object.(*v1beta1.EndpointSlice).ResourceVersion
+				if es, ok := e.Object.(*v1beta1.EndpointSlice); ok {
+					w.resourceVersion = es.ResourceVersion
+				} else if es, ok := e.Object.(*v1.EndpointSlice); ok {
+					w.resourceVersion = es.ResourceVersion
+				}
 				opt.ResourceVersion = w.resourceVersion
 			} else {
 				fn(e)
@@ -45,6 +58,7 @@ func (w *watcher) WatchLooped(ctx context.Context, fn func(watch.Event), opt met
 			return err
 		}
 	}
+	return ctx.Err()
 }
 
 func (w *watcher) Watch(ctx context.Context, fn func(watch.Event), opt metav1.ListOptions) error {
@@ -77,8 +91,13 @@ func (w *watcher) Watch(ctx context.Context, fn func(watch.Event), opt metav1.Li
 func KubernetesEndpointWatch(ctx context.Context, fn func(watch.EventType, Slice)) error {
 	m := client()
 	readyz(m)
+
+	// Somehow 'paths' does not work in 'kind'; sofar only tested to work in GKE
 	registered, _ := paths(m)
-	if registered.Has("/apis/discovery.k8s.io/v1") {
+	continueIfPathsUnknown := len(registered.Paths) == 0
+
+	if continueIfPathsUnknown || registered.Has("/apis/discovery.k8s.io/v1") {
+		zap.L().Debug("Using /apis/discovery.k8s.io/v1")
 		w := &watcher{Fn: m.DiscoveryV1().EndpointSlices(Namespace()).Watch}
 		return w.WatchLooped(ctx, func(e watch.Event) {
 			if es, ok := e.Object.(*v1.EndpointSlice); ok {
@@ -87,8 +106,8 @@ func KubernetesEndpointWatch(ctx context.Context, fn func(watch.EventType, Slice
 				fn(e.Type, slice)
 			}
 		}, metav1.ListOptions{})
-
 	} else if registered.Has("/apis/discovery.k8s.io/v1beta1") {
+		zap.L().Debug("Using /apis/discovery.k8s.io/v1beta1")
 		w := &watcher{Fn: m.DiscoveryV1beta1().EndpointSlices(Namespace()).Watch}
 		return w.WatchLooped(ctx, func(e watch.Event) {
 			if es, ok := e.Object.(*v1beta1.EndpointSlice); ok {
@@ -98,7 +117,7 @@ func KubernetesEndpointWatch(ctx context.Context, fn func(watch.EventType, Slice
 			}
 		}, metav1.ListOptions{})
 	} else {
-		return errors.New("EndpointSlices Discovery API is not supported by your cluster")
+		return fmt.Errorf("EndpointSlices Discovery API is not supported by your cluster; supported paths: %v", registered)
 	}
 }
 
@@ -113,6 +132,7 @@ func readyz(m *kubernetes.Clientset) (err error) {
 	if !bytes.Equal(payload[0:2], []byte("ok")) {
 		return fmt.Errorf("unexpected healthz response %q", string(payload))
 	}
+	zap.L().Debug("kubernetes ready")
 	return
 }
 
@@ -132,20 +152,28 @@ func paths(m *kubernetes.Clientset) (paths Paths, err error) {
 	var payload []byte
 	payload, err = m.RESTClient().Get().DoRaw(context.TODO())
 	if err != nil {
+		zap.L().Error(err.Error(), zap.Error(err))
 		return
 	}
+
+	zap.L().Info("raw REST get", zap.ByteString("result", payload))
 	err = json.NewDecoder(bytes.NewReader(payload)).Decode(&paths)
 	return
 }
 
+var kubeFlagSet = flag.NewFlagSet("kube", flag.ExitOnError)
+
 func client() *kubernetes.Clientset {
 	var kubeconfig *string
+	var defaultLocation string
 	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		defaultLocation = filepath.Join(home, ".kube", "config")
+		if _, err := os.Stat(defaultLocation); os.IsNotExist(err) {
+			defaultLocation = ""
+		}
 	}
-	flag.Parse()
+	kubeconfig = kubeFlagSet.String("kubeconfig", defaultLocation, "absolute path to the kubeconfig file")
+	kubeFlagSet.Parse(os.Args[1:])
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)

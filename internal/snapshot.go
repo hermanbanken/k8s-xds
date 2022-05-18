@@ -52,7 +52,7 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 	var rds []types.Resource
 	var lds []types.Resource
 	for service, podEndPoints := range mapping {
-		zap.L().Debug("Creating new XDS Entry", zap.String("service", service))
+		zap.L().Debug("Creating new xDS Entry", zap.String("service", service))
 		eds = append(eds, clusterLoadAssignment(podEndPoints, fmt.Sprintf("%s-cluster", service), ownZone, seed)...)
 		cds = append(cds, createCluster(fmt.Sprintf("%s-cluster", service))...)
 		rds = append(rds, createRoute(fmt.Sprintf("%s-route", service), fmt.Sprintf("%s-vhost", service), service, fmt.Sprintf("%s-cluster", service))...)
@@ -72,7 +72,7 @@ func GenerateSnapshot(node *core.Node, mapping Mapping) (*cache.Snapshot, error)
 	} else if err := snapshot.Consistent(); err != nil {
 		zap.L().Error("Snapshot inconsistency", zap.Any("snapshot", snapshot), zap.Error(err))
 	}
-	return &snapshot, nil
+	return snapshot, nil
 }
 
 func clusterLoadAssignment(zones map[string][]podEndPoint, clusterName string, ownZone string, seed int64) []types.Resource {
@@ -255,6 +255,10 @@ func createListener(listenerName string, clusterName string, routeConfigName str
 }
 
 func zoneToRegion(zone string) string {
+	if len(zone) <= 2 {
+		zap.S().Warnf("Invalid zone %q", zone)
+		return zone
+	}
 	// trim -a -b -c suffix
 	return zone[0 : len(zone)-2]
 }

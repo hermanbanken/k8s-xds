@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+bases:
+- ../base
+resources:
+# simplest k8s service approach
+- 2-client-clusterip.yaml
+# with xDS
+- 3-xds.yaml
+- 3-xds-client.yaml
+
+images:
+- name: demo-client
+  newName: localhost:5001/demo-client
+- name: demo-server
+  newName: localhost:5001/demo-server
+- name: demo-xds
+  newName: localhost:5001/demo-xds
+
+configMapGenerator:
+- name: demo-client-xds
+  files:
+  - bootstrap.json=3-bootstrap.json
+- name: demo-xds
+  files:
+  - app.yaml=3-app.yaml
