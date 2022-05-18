@@ -1,32 +1,14 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
-  labels: { app: demo-client-headless }
-  name: demo-client-headless
+  name: demo-server-clusterip
 spec:
-  replicas: 2
-  selector:
-    matchLabels: { app: demo-client-headless }
-  template:
-    metadata:
-      labels: { app: demo-client-headless }
-    spec:
-      containers:
-      - image: demo-client
-        name: demo-client-headless
-        envFrom: [configMapRef: { name: jaeger }]
-        env:
-        - name: UPSTREAM_HOST
-          value: demo-server-headless:9090
-        - name: DURATION
-          value: 500ms
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 8080
-          initialDelaySeconds: 1
-          periodSeconds: 1
-          failureThreshold: 1
+  type: ClusterIP
+  selector: { app: demo-server }
+  ports:
+  - port: 9090
+    protocol: TCP
+    targetPort: 9090
 ---
 
 apiVersion: apps/v1
