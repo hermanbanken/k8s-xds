@@ -13,9 +13,40 @@ docker push localhost:5001/demo-server
 IMAGE=localhost:5001/demo-server
 
 # Both:
-kubectl create deployment demo-server --image="$IMAGE" --replicas=1
-kubectl expose deployment demo-server --port=9090 --target-port=9090 --selector='app=demo-server' --cluster-ip='None'
-kubectl set env deployment/demo-server JAEGER_TRACE_URL=http://jaeger:14268/api/traces
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: { app: demo-server }
+  name: demo-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: demo-server }
+  template:
+    metadata:
+      labels: { app: demo-server }
+    spec:
+      containers:
+      - image: $IMAGE
+        name: demo-xds
+        env:
+        # - name: JAEGER_TRACE_URL
+        #  value: http://jaeger:14268/api/traces
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels: { app: demo-server }
+  name: demo-server
+spec:
+  clusterIP: None
+  ports:
+  - port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector: { app: demo-server }
+EOF
 
 # Locally:
 # docker run -d --name jaeger \
